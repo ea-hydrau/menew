@@ -1,10 +1,10 @@
-const CACHE = "menu-semaine-v1";
+const CACHE = "menu-semaine-v2";
 const RESSOURCES = [
   "./", "./index.html", "./manifest.json", "./icon.svg",
-  "https://unpkg.com/react@18/umd/react.production.min.js",
-  "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
-  "https://unpkg.com/@babel/standalone/babel.min.js",
-  "https://cdn.tailwindcss.com",
+  "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js",
+  "https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js",
+  "https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js",
+  "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
 ];
 
 self.addEventListener("install", (e) => {
