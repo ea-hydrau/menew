@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#292524" />
+<title>Menu de la semaine</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+// ---------- Calendrier de saison (France) ----------
+const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const LEGUMES_MOIS = {
+  0:["Carotte","Poireau","Chou-fleur","Endive","Betterave","Navet","Épinard","Citrouille","Radicchio","Salsifis","Panais","Chou de Bruxelles"],
+  1:["Carotte","Poireau","Chou-fleur","Endive","Betterave","Épinard","Navet","Radicchio","Salade","Céleri-rave"],
+  2:["Carotte","Poireau","Épinard","Endive","Betterave","Navet","Salade","Céleri","Radis","Asperge","Chou-fleur"],
+  3:["Asperge","Épinard","Radis","Petits pois","Salade","Poireau","Carotte","Chou-fleur","Artichaut","Fève","Céleri","Pomme de terre primeur"],
+  4:["Asperge","Radis","Petits pois","Fève","Salade","Artichaut","Courgette","Carotte nouvelle","Chou-fleur","Épinard","Blette","Ail frais"],
+  5:["Courgette","Haricot vert","Artichaut","Salade","Tomate","Fenouil","Blette","Petits pois","Concombre","Radis","Aubergine","Poivron"],
+  6:["Tomate","Courgette","Haricot vert","Aubergine","Poivron","Concombre","Melon","Salade","Fenouil","Maïs","Blette","Échalote"],
+  7:["Tomate","Courgette","Haricot vert","Aubergine","Poivron","Concombre","Melon","Salade","Fenouil","Maïs","Blette","Courge"],
+  8:["Tomate","Courgette","Haricot vert","Aubergine","Poivron","Concombre","Salade","Courge","Poireau","Fenouil","Blette","Épinard","Champignon","Figue"],
+  9:["Courge","Potiron","Poireau","Chou-fleur","Champignon","Endive","Betterave","Épinard","Salade","Carotte","Chou de Bruxelles","Blette","Navet"],
+  10:["Courge","Poireau","Chou-fleur","Champignon","Endive","Betterave","Épinard","Carotte","Chou de Bruxelles","Navet","Céleri-rave","Panais","Citrouille","Salade d'hiver"],
+  11:["Carotte","Poireau","Chou-fleur","Endive","Betterave","Épinard","Navet","Chou de Bruxelles","Céleri-rave","Panais","Citrouille","Radicchio"],
+};
+const FRUITS_MOIS = {
+  0:["Pomme","Poire","Orange","Mandarine","Kiwi","Citron","Grenade","Châtaigne"],
+  1:["Pomme","Poire","Orange","Mandarine","Kiwi","Citron","Grenade"],
+  2:["Pomme","Poire","Orange","Citron","Kiwi","Rhubarbe"],
+  3:["Pomme","Poire","Rhubarbe","Fraise","Citron"],
+  4:["Fraise","Rhubarbe","Cerise","Pomme","Poire"],
+  5:["Fraise","Cerise","Abricot","Pêche","Melon","Framboise","Groseille"],
+  6:["Abricot","Pêche","Nectarine","Melon","Pastèque","Framboise","Myrtille","Cerise","Prune"],
+  7:["Melon","Pastèque","Pêche","Nectarine","Prune","Poire","Figue","Raisin","Myrtille","Abricot"],
+  8:["Raisin","Figue","Poire","Pomme","Prune","Framboise","Melon","Châtaigne"],
+  9:["Pomme","Poire","Raisin","Coing","Châtaigne","Figue","Myrtille"],
+  10:["Pomme","Poire","Coing","Châtaigne","Orange","Mandarine","Kiwi","Grenade"],
+  11:["Pomme","Poire","Orange","Mandarine","Kiwi","Citron","Grenade","Châtaigne"],
+};
+const JOURS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+
+// ---------- Types & sauvegarde ----------
+const uid = () => Math.random().toString(36).slice(2, 9);
+const CLE = "menu-semaine:repas";
+
+function chargerRepas() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CLE) || "[]");
+    if (!Array.isArray(data)) return [];
+    return data.filter(p => p && typeof p.nom === "string").map(p => ({
+      id: typeof p.id === "string" ? p.id : uid(),
+      nom: p.nom,
+      ingredients: Array.isArray(p.ingredients) ? p.ingredients.filter(i => typeof i === "string") : [],
+      favori: Boolean(p.favori),
+      vegetarien: Boolean(p.vegetarien),
+      nouveau: false,
+    }));
+  } catch { return []; }
+}
+function enregistrerRepas(repas) {
+  try { localStorage.setItem(CLE, JSON.stringify(repas)); } catch {}
+}
+
+// ---------- Banque de nouveaux plats ----------
+const BANQUE = [
+  { id: uid(), nom: "Curry de patates douces & pois chiches", ingredients: ["Courge","Poivron"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Tarte fine aux asperges & chèvre", ingredients: ["Asperge"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Wok de légumes nouveaux & tofu", ingredients: ["Poireau","Carotte","Poivron"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Velouté de fenouil à l'orange", ingredients: ["Fenouil","Orange"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Frittata aux courgettes & menthe", ingredients: ["Courgette"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Tajine d'agneau aux abricots", ingredients: ["Abricot"], vegetarien: false, nouveau: true },
+  { id: uid(), nom: "Lasagnes aux épinards & ricotta", ingredients: ["Épinard"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Salade betterave-chèvre-noisettes", ingredients: ["Betterave"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Poke bowl betterave & avocat", ingredients: ["Betterave","Concombre"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Risotto aux champignons", ingredients: ["Champignon"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Gratin de chou-fleur au fromage", ingredients: ["Chou-fleur"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Tian d'aubergines à la menthe", ingredients: ["Aubergine","Tomate"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Velouté de panais aux noix", ingredients: ["Panais"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Poêlée fenouil-orange & saumon", ingredients: ["Fenouil","Orange"], vegetarien: false, nouveau: true },
+  { id: uid(), nom: "Burgers de haricots verts & patate douce", ingredients: ["Haricot vert"], vegetarien: true, nouveau: true },
+  { id: uid(), nom: "Clafoutis aux cerises (dessert)", ingredients: ["Cerise"], vegetarien: true, nouveau: true },
+];
+
+// ---------- Logique ----------
+function scoreSaisonnier(p, mois, favoriBonus) {
+  const saison = new Set([...(LEGUMES_MOIS[mois]||[]), ...(FRUITS_MOIS[mois]||[])]);
+  if (!p.ingredients.length) return 1;
+  const m = p.ingredients.filter(i => saison.has(i)).length;
+  return 1 + m / p.ingredients.length * 4 + (favoriBonus && p.favori ? 0.5 : 0);
+}
+
+function genererMenu(repas, mois, cfg, seed) {
+  let s = seed;
+  const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+  const nonUtilises = BANQUE.filter(b => !repas.some(r => r.nom === b.nom));
+  const nouveauxTries = nonUtilises.map(p => ({ p, sc: scoreSaisonnier(p, mois, false) + rnd() })).sort((a,b)=>b.sc-a.sc).map(x=>x.p);
+  const tousTries = [...repas, ...nouveauxTries].map(p => ({ p, sc: scoreSaisonnier(p, mois, true) + rnd()*1.5 })).sort((a,b)=>b.sc-a.sc).map(x=>x.p);
+
+  const choisis = [], pris = new Set();
+  for (let i = 0; i < Math.min(cfg.nbNouveaux, nouveauxTries.length); i++) { choisis.push(nouveauxTries[i]); pris.add(nouveauxTries[i].nom); }
+  for (const p of tousTries) {
+    if (choisis.filter(c => c.vegetarien).length >= Math.min(cfg.nbVegetariens, 7)) break;
+    if (!pris.has(p.nom)) { choisis.push(p); pris.add(p.nom); }
+  }
+  for (const p of tousTries) {
+    if (choisis.length >= 7) break;
+    if (!pris.has(p.nom)) { choisis.push(p); pris.add(p.nom); }
+  }
+  const ordre = [...choisis];
+  for (let i = ordre.length - 1; i > 0; i--) { const j = Math.floor(rnd()*(i+1)); [ordre[i],ordre[j]]=[ordre[j],ordre[i]]; }
+  return JOURS.map((jour, idx) => {
+    const plat = ordre[idx % ordre.length];
+    return { jour, plat, provenance: plat.nouveau && !repas.some(r => r.nom === plat.nom) ? "nouveau" : "repas" };
+  });
+}
+
+function remplacerPlat(menu, idx, repas, mois, cfg) {
+  const saison = new Set([...(LEGUMES_MOIS[mois]||[]), ...(FRUITS_MOIS[mois]||[])]);
+  const deja = new Set(menu.map(m => m.plat.nom));
+  const ancien = menu[idx].plat;
+  const nbVege = menu.filter(m => m.plat.vegetarien).length;
+  const doitResteVege = ancien.vegetarien && nbVege <= cfg.nbVegetariens;
+  const candidats = [...repas, ...BANQUE.filter(b => !repas.some(r => r.nom === b.nom))]
+    .filter(p => !deja.has(p.nom) && (!doitResteVege || p.vegetarien))
+    .map(p => ({ p, sc: scoreSaisonnier(p, mois, false) + Math.random()*1.5 + (p.nouveau?0.2:0) + (p.ingredients.some(i=>saison.has(i))?0.3:0) }))
+    .sort((a,b)=>b.sc-a.sc);
+  if (!candidats.length) return menu;
+  const plat = candidats[0].p;
+  return menu.map((m, i) => i === idx ? { ...m, plat, provenance: repas.some(r => r.nom === plat.nom) ? "repas" : "nouveau" } : m);
+}
+
+// ---------- Petits composants UI (remplacent shadcn/ui) ----------
+const Badge = ({ className = "", children }) => (
+  <span className={"inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs " + className}>{children}</span>
+);
+const Btn = ({ className = "", ...props }) => (
+  <button className={"rounded-lg px-3 py-1.5 text-sm transition " + className} {...props} />
+);
+
+// ---------- Application ----------
+function App() {
+  const [repas, setRepas] = useState(chargerRepas);
+  const [nom, setNom] = useState("");
+  const [ing, setIng] = useState("");
+  const [vege, setVege] = useState(true);
+  const [mois, setMois] = useState(new Date().getMonth());
+  const [cfg, setCfg] = useState({ nbNouveaux: 2, nbVegetariens: 3 });
+  const [seed, setSeed] = useState(42);
+  const [onglet, setOnglet] = useState("menu");
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => { enregistrerRepas(repas); }, [repas]);
+
+  const [menu, setMenu] = useState(() => genererMenu(chargerRepas(), new Date().getMonth(), { nbNouveaux: 2, nbVegetariens: 3 }, 42));
+  useEffect(() => { setMenu(genererMenu(repas, mois, cfg, seed)); }, [mois, cfg, seed]);
+
+  const saison = useMemo(() => ({ legumes: LEGUMES_MOIS[mois]||[], fruits: FRUITS_MOIS[mois]||[] }), [mois]);
+
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const ajouter = () => {
+    const n = nom.trim(); if (!n) return;
+    setRepas(prev => [...prev, { id: uid(), nom: n, ingredients: ing.split(",").map(s=>s.trim()).filter(Boolean), favori: false, vegetarien: vege, nouveau: false }]);
+    setNom(""); setIng(""); flash(`« ${n} » ajouté à vos repas.`);
+  };
+  const remplacerJour = (idx) => {
+    const m = remplacerPlat(menu, idx, repas, mois, cfg);
+    if (m !== menu) { setMenu(m); flash(`Nouveau plat pour ${m[idx].jour} : « ${m[idx].plat.nom} »`); }
+    else flash("Plus aucun plat de remplacement disponible 🙈");
+  };
+  const adopter = (p) => {
+    if (repas.some(r => r.nom === p.nom)) return flash("Ce plat est déjà dans vos repas.");
+    setRepas(prev => [...prev, { ...p, id: uid(), favori: true, nouveau: false }]);
+    flash(`« ${p.nom} » adopté !`);
+  };
+
+  const badgeSaison = (p) => {
+    const sa = new Set([...saison.legumes, ...saison.fruits]);
+    if (!p.ingredients.length) return <Badge className="border-stone-300 text-stone-600">saisonnalité inconnue</Badge>;
+    const r = p.ingredients.filter(i => sa.has(i)).length / p.ingredients.length;
+    if (r === 1) return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">🌞 100 % de saison</Badge>;
+    if (r >= 0.5) return <Badge className="bg-amber-100 text-amber-800 border-amber-300">🌤 partiellement de saison</Badge>;
+    return <Badge className="bg-slate-100 text-slate-600 border-slate-300">❄️ hors saison</Badge>;
+  };
+  const badgesIng = (p) => p.ingredients.map(i => (
+    <Badge key={i} className={"border-stone-200 " + (saison.legumes.includes(i) || saison.fruits.includes(i) ? "border-emerald-400 text-emerald-700" : "text-stone-500")}>{i}</Badge>
+  ));
+
+  const carte = (children, extra="") => (
+    <div className={"rounded-xl border bg-white p-4 shadow-sm space-y-2 " + (extra || "border-stone-200")}>{children}</div>
+  );
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 space-y-5 bg-[#faf9f6] min-h-screen">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-800">🍽️ Menu de la semaine</h1>
+          <p className="text-stone-500 text-sm">Repas du foyer + fruits & légumes de saison.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select value={mois} onChange={e=>setMois(Number(e.target.value))} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm">
+            {MOIS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+          </select>
+          <Btn onClick={()=>setSeed(s=>s+1)} className="bg-stone-800 text-white hover:bg-stone-700">🎲 Générer</Btn>
+        </div>
+      </header>
+
+      {toast && <div className="rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 px-4 py-2 text-sm">{toast}</div>}
+
+      <div className="flex flex-wrap gap-2">
+        {[["menu","📅 Menu"],["repas","📖 Mes repas ("+repas.length+")"],["saison","🥕 De saison"],["nouveaux","✨ Nouveaux plats"]].map(([k,l]) => (
+          <Btn key={k} onClick={()=>setOnglet(k)} className={onglet===k ? "bg-stone-800 text-white" : "bg-white border border-stone-300 text-stone-600 hover:bg-stone-100"}>{l}</Btn>
+        ))}
+      </div>
+
+      {onglet === "menu" && (
+        <div className="space-y-4">
+          {carte(
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-stone-600">Nouveaux plats :</span>
+                {[0,1,2,3].map(n => (
+                  <button key={n} onClick={()=>setCfg(c=>({...c, nbNouveaux:n}))}
+                    className={"w-8 h-8 rounded-full border text-sm "+(cfg.nbNouveaux===n?"bg-stone-800 text-white border-stone-800":"border-stone-300 text-stone-600 hover:bg-stone-100")}>{n}</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-stone-600">🌱 Végétariens :</span>
+                {[0,1,2,3,4,5,6,7].map(n => (
+                  <button key={n} onClick={()=>setCfg(c=>({...c, nbVegetariens:n}))}
+                    className={"w-8 h-8 rounded-full border text-sm "+(cfg.nbVegetariens===n?"bg-emerald-600 text-white border-emerald-600":"border-stone-300 text-stone-600 hover:bg-stone-100")}>{n}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid gap-3 md:grid-cols-2">
+            {menu.map(({jour, plat, provenance}, idx) => (
+              carte(
+                <React.Fragment>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-stone-800">{jour}</p>
+                    {provenance === "nouveau" && <Badge className="bg-violet-100 text-violet-800 border-violet-300">✨ à découvrir</Badge>}
+                  </div>
+                  <p className="font-medium text-stone-800">{plat.nom}</p>
+                  <div className="flex flex-wrap gap-1.5">{badgesIng(plat)}</div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex flex-wrap gap-1.5">
+                      {badgeSaison(plat)}
+                      {plat.vegetarien && <Badge className="bg-lime-100 text-lime-800 border-lime-300">🌱 végétarien</Badge>}
+                    </div>
+                    <Btn onClick={()=>remplacerJour(idx)} className="border border-stone-300 text-stone-600 hover:bg-stone-100">🔄 Remplacer</Btn>
+                  </div>
+                </React.Fragment>,
+                provenance === "nouveau" ? "border-violet-300 bg-violet-50/40" : ""
+              )
+            ))}
+          </div>
+        </div>
+      )}
+
+      {onglet === "repas" && (
+        <div className="space-y-4">
+          {carte(
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-stone-700">Ajouter un repas que le foyer fait régulièrement</p>
+              <p className="text-xs text-stone-400">💾 Sauvegarde automatique sur cet appareil.</p>
+              <div className="flex flex-col md:flex-row gap-2">
+                <input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom du plat" className="rounded-lg border border-stone-300 px-3 py-2 flex-1" />
+                <input value={ing} onChange={e=>setIng(e.target.value)} placeholder="Légumes/fruits (virgules)" className="rounded-lg border border-stone-300 px-3 py-2 flex-1" />
+                <Btn onClick={ajouter} className="bg-stone-800 text-white hover:bg-stone-700">Ajouter</Btn>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-stone-600">
+                <input type="checkbox" checked={vege} onChange={e=>setVege(e.target.checked)} /> 🌱 Plat végétarien
+              </label>
+            </div>
+          )}
+          {repas.length === 0 ? (
+            carte(<div className="text-center text-sm text-stone-500 space-y-1">
+              <p className="text-lg">📖</p>
+              <p className="font-medium text-stone-700">Votre liste est vierge pour l'instant.</p>
+              <p>Ajoutez les plats que votre foyer mange régulièrement : le générateur s'appuiera dessus pour composer la semaine.</p>
+            </div>, "border-dashed border-stone-300")
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {repas.map(p => carte(
+                <React.Fragment>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-stone-800">{p.nom}</p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={()=>setRepas(prev=>prev.map(r=>r.id===p.id?{...r,favori:!r.favori}:r))} className="text-lg leading-none">{p.favori?"⭐":"☆"}</button>
+                      <button onClick={()=>setRepas(prev=>prev.filter(r=>r.id!==p.id))} className="text-stone-400 hover:text-red-500">🗑</button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">{badgesIng(p)}</div>
+                  <div className="flex flex-wrap gap-1.5">{badgeSaison(p)}{p.vegetarien && <Badge className="bg-lime-100 text-lime-800 border-lime-300">🌱 végétarien</Badge>}</div>
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {onglet === "saison" && (
+        <div className="space-y-4">
+          {carte(<React.Fragment>
+            <p className="font-semibold text-lg">🥕 Légumes — {MOIS[mois]}</p>
+            <div className="flex flex-wrap gap-2">{saison.legumes.map(l=><Badge key={l} className="bg-emerald-100 text-emerald-800 border-emerald-300">{l}</Badge>)}</div>
+          </React.Fragment>)}
+          {carte(<React.Fragment>
+            <p className="font-semibold text-lg">🍎 Fruits — {MOIS[mois]}</p>
+            <div className="flex flex-wrap gap-2">{saison.fruits.map(f=><Badge key={f} className="bg-rose-100 text-rose-800 border-rose-300">{f}</Badge>)}</div>
+          </React.Fragment>)}
+          <p className="text-xs text-stone-400">Calendrier indicatif pour la France métropolitaine.</p>
+        </div>
+      )}
+
+      {onglet === "nouveaux" && (
+        <div className="space-y-4">
+          <p className="text-sm text-stone-500">Idées pour sortir de la routine, classées pour {MOIS[mois].toLowerCase()}. Adoptez celles qui vous tentent !</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {BANQUE.map(p=>({p, sc:scoreSaisonnier(p,mois,false)})).sort((a,b)=>b.sc-a.sc).map(({p}) => {
+              const adopte = repas.some(r=>r.nom===p.nom);
+              return carte(
+                <React.Fragment>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-stone-800">{p.nom}</p>
+                    {adopte && <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">✓ Adopté</Badge>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">{badgesIng(p)}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap gap-1.5">{badgeSaison(p)}{p.vegetarien && <Badge className="bg-lime-100 text-lime-800 border-lime-300">🌱 végétarien</Badge>}</div>
+                    {!adopte && <Btn onClick={()=>adopter(p)} className="border border-stone-300 text-stone-600 hover:bg-stone-100">Adopter</Btn>}
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+// ---------- Enregistrement du service worker ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
